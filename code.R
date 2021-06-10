@@ -5,7 +5,7 @@ library(DBI)
 library(dplyr)
 library(nflfastR)
 library(tidyverse)
-# Create a database to access. I've never done this but I am trying it out just
+# Create a database to access. I've never done this but I am trying it out just----
 #to see it for future reference.
 
 read_pbp_rds <- function(year){
@@ -25,7 +25,7 @@ mydb
 DBI::dbWriteTable(mydb, "2000-2019_pbp_raw.rds",all_pbp)
 library(dbplyr)
 rm(all_pbp)
-# Open a queryable connection with the database
+# Open a queryable connection with the database----
 pbp_db <- tbl(mydb, "2000-2019_pbp_raw.rds")
 pass_df <- pbp_db %>% filter(pass_attempt==1) %>%
   select(receiver_id,receiver_player_name,posteam,air_yards,season) %>% 
@@ -54,13 +54,13 @@ top_air %>% inner_join(pass_df,by = "receiver_id") %>% filter(season.x==2020) %>
 # Target Shares-----
 # shares per player per game
 #note yet to merge these together
-pbp_db %>%
+per_game_targets <- pbp_db %>%
   select(game_id, receiver_player_id,receiver_player_name,posteam,season,pass_attempt) %>% filter(season == 2020) %>%
-  collect() %>% 
+  collect() %>% drop_na(receiver_player_id) %>% 
   group_by(game_id, receiver_player_id,receiver_player_name,posteam) %>%
   summarise(attempts = sum(pass_attempt,na.rm = T))  
 
-pbp_db %>%
+target_shares_means <- pbp_db %>%
   select(game_id, receiver_player_id,receiver_player_name,posteam,season,pass_attempt) %>%
   filter(season == 2020) %>% 
   collect() %>% 
@@ -68,3 +68,9 @@ pbp_db %>%
   group_by(game_id,posteam) %>%
   summarise(pass_attempts= sum(pass_attempt,na.rm = T)) 
 
+target_df <- inner_join(per_game_targets,target_shares_means,by=(c("game_id","posteam")))%>%
+  mutate(target_share = attempts/pass_attempts)
+target_df %>%group_by(receiver_player_id, receiver_player_name, posteam) %>%
+  summarise(ave_target_share=mean(target_share),ave_attempt_per=mean(attempts)) %>% 
+  arrange(-ave_target_share)
+  
